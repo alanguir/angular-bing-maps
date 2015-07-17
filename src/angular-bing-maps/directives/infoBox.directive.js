@@ -6,7 +6,6 @@ function infoBoxDirective() {
     function link(scope, element, attrs, ctrls) {
         var infobox = new Microsoft.Maps.Infobox(),
             pushpinCtrl = ctrls[1];
-
         function updateLocation() {
             infobox.setLocation(new Microsoft.Maps.Location(scope.lat, scope.lng));
         }
@@ -18,7 +17,9 @@ function infoBoxDirective() {
                 scope.options.title = scope.title;
             }
             if (scope.description) {
-                scope.options.description = scope.description;
+                scope.options.description = scope.description + element.html();
+            } else {
+                scope.options.description = element.html();
             }
             if (scope.hasOwnProperty('visible')) {
                 scope.options.visible = scope.visible;
@@ -60,17 +61,19 @@ function infoBoxDirective() {
     }
 
     return {
-        link: link,
-        restrict: 'EA',
-        scope: {
-            options: '=?',
-            lat: '=?',
-            lng: '=?',
-            title: '=?',
-            description: '=?',
-            visible: '=?'
-        },
-        require: ['^bingMap', '?^pushpin']
+      link: link,
+      template: '<div ng-transclude></div>',
+      restrict: 'EA',
+      transclude: true,
+      scope: {
+        options: '=?',
+        lat: '=?',
+        lng: '=?',
+        title: '=?',
+        description: '=?',
+        visible: '=?'
+      },
+      require: ['^bingMap', '?^pushpin']
     };
 
 }

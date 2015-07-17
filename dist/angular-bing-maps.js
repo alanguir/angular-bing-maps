@@ -27,6 +27,96 @@
 
 /*global angular, Microsoft, DrawingTools, console*/
 
+function mapUtilsService($q) {
+    'use strict';
+    var color = require('color');
+    var advancedShapesLoaded = false;
+
+    function makeMicrosoftColor(colorStr) {
+        var c = color(colorStr);
+        return new Microsoft.Maps.Color(Math.floor(255*c.alpha()), c.red(), c.green(), c.blue());
+    }
+
+    function makeMicrosoftLatLng(location) {
+        if (angular.isArray(location)) {
+            return new Microsoft.Maps.Location(location[1], location[0]);
+        } else if (location.hasOwnProperty('latitude') && location.hasOwnProperty('longitude')) {
+            return new Microsoft.Maps.Location(location.latitude, location.longitude);
+        } else if (location.hasOwnProperty('lat') && location.hasOwnProperty('lng')) {
+            return new Microsoft.Maps.Location(location.lat, location.lng);
+        } else {
+            if(console && console.error) {
+                console.error('Your coordinates are in a non-standard form. '+
+                              'Please refer to the Angular Bing Maps '+
+                              'documentation to see supported coordinate formats');
+            }
+            return null;
+        }
+    }
+
+    function convertToMicrosoftLatLngs(locations) {
+        var bingLocations = [];
+        if (!locations) {
+            return bingLocations;
+        }
+        for (var i=0;i<locations.length;i++) {
+            var latLng = makeMicrosoftLatLng(locations[i]);
+            bingLocations.push(latLng);
+        }
+        return bingLocations;
+    }
+    
+    function flattenEntityCollection(ec) {
+        var flat = flattenEntityCollectionRecursive(ec);
+        var flatEc = new Microsoft.Maps.EntityCollection();
+        var entity = flat.pop();
+        while(entity) {
+            flatEc.push(entity);
+            entity = flat.pop();
+        }
+        return flatEc;
+    }
+    
+    function flattenEntityCollectionRecursive(ec) {
+        var flat = [];
+        var entity = ec.pop();
+        while(entity) {
+            if (entity && !(entity instanceof Microsoft.Maps.EntityCollection)) {
+                flat.push(entity);
+            } else if (entity) {
+                flat.concat(flattenEntityCollectionRecursive(entity));
+            }
+            entity = ec.pop();
+        }
+        return flat;
+    }
+    
+    function loadAdvancedShapesModule() {
+        var defered = $q.defer();
+        if(!advancedShapesLoaded) {
+            Microsoft.Maps.loadModule('Microsoft.Maps.AdvancedShapes', { callback: function(){
+                defered.resolve();
+            }});
+        } else {
+            defered.resolve();
+        }
+        return defered.promise;
+    }
+
+    return {
+        makeMicrosoftColor: makeMicrosoftColor,
+        makeMicrosoftLatLng: makeMicrosoftLatLng,
+        convertToMicrosoftLatLngs: convertToMicrosoftLatLngs,
+        flattenEntityCollection: flattenEntityCollection,
+        loadAdvancedShapesModule: loadAdvancedShapesModule
+    };
+
+}
+
+angular.module('angularBingMaps.services').service('MapUtils', mapUtilsService);
+
+/*global angular, Microsoft, DrawingTools, console*/
+
 function drawingToolsDirective(MapUtils) {
     'use strict';
 
@@ -156,7 +246,6 @@ function infoBoxDirective() {
     function link(scope, element, attrs, ctrls) {
         var infobox = new Microsoft.Maps.Infobox(),
             pushpinCtrl = ctrls[1];
-
         function updateLocation() {
             infobox.setLocation(new Microsoft.Maps.Location(scope.lat, scope.lng));
         }
@@ -168,7 +257,9 @@ function infoBoxDirective() {
                 scope.options.title = scope.title;
             }
             if (scope.description) {
-                scope.options.description = scope.description;
+                scope.options.description = scope.description + element.html();
+            } else {
+                scope.options.description = element.html();
             }
             if (scope.hasOwnProperty('visible')) {
                 scope.options.visible = scope.visible;
@@ -210,17 +301,19 @@ function infoBoxDirective() {
     }
 
     return {
-        link: link,
-        restrict: 'EA',
-        scope: {
-            options: '=?',
-            lat: '=?',
-            lng: '=?',
-            title: '=?',
-            description: '=?',
-            visible: '=?'
-        },
-        require: ['^bingMap', '?^pushpin']
+      link: link,
+      template: '<div ng-transclude></div>',
+      restrict: 'EA',
+      transclude: true,
+      scope: {
+        options: '=?',
+        lat: '=?',
+        lng: '=?',
+        title: '=?',
+        description: '=?',
+        visible: '=?'
+      },
+      require: ['^bingMap', '?^pushpin']
     };
 
 }
@@ -674,96 +767,6 @@ function wktDirective(MapUtils) {
 }
 
 angular.module('angularBingMaps.directives').directive('wkt', wktDirective);
-
-/*global angular, Microsoft, DrawingTools, console*/
-
-function mapUtilsService($q) {
-    'use strict';
-    var color = require('color');
-    var advancedShapesLoaded = false;
-
-    function makeMicrosoftColor(colorStr) {
-        var c = color(colorStr);
-        return new Microsoft.Maps.Color(Math.floor(255*c.alpha()), c.red(), c.green(), c.blue());
-    }
-
-    function makeMicrosoftLatLng(location) {
-        if (angular.isArray(location)) {
-            return new Microsoft.Maps.Location(location[1], location[0]);
-        } else if (location.hasOwnProperty('latitude') && location.hasOwnProperty('longitude')) {
-            return new Microsoft.Maps.Location(location.latitude, location.longitude);
-        } else if (location.hasOwnProperty('lat') && location.hasOwnProperty('lng')) {
-            return new Microsoft.Maps.Location(location.lat, location.lng);
-        } else {
-            if(console && console.error) {
-                console.error('Your coordinates are in a non-standard form. '+
-                              'Please refer to the Angular Bing Maps '+
-                              'documentation to see supported coordinate formats');
-            }
-            return null;
-        }
-    }
-
-    function convertToMicrosoftLatLngs(locations) {
-        var bingLocations = [];
-        if (!locations) {
-            return bingLocations;
-        }
-        for (var i=0;i<locations.length;i++) {
-            var latLng = makeMicrosoftLatLng(locations[i]);
-            bingLocations.push(latLng);
-        }
-        return bingLocations;
-    }
-    
-    function flattenEntityCollection(ec) {
-        var flat = flattenEntityCollectionRecursive(ec);
-        var flatEc = new Microsoft.Maps.EntityCollection();
-        var entity = flat.pop();
-        while(entity) {
-            flatEc.push(entity);
-            entity = flat.pop();
-        }
-        return flatEc;
-    }
-    
-    function flattenEntityCollectionRecursive(ec) {
-        var flat = [];
-        var entity = ec.pop();
-        while(entity) {
-            if (entity && !(entity instanceof Microsoft.Maps.EntityCollection)) {
-                flat.push(entity);
-            } else if (entity) {
-                flat.concat(flattenEntityCollectionRecursive(entity));
-            }
-            entity = ec.pop();
-        }
-        return flat;
-    }
-    
-    function loadAdvancedShapesModule() {
-        var defered = $q.defer();
-        if(!advancedShapesLoaded) {
-            Microsoft.Maps.loadModule('Microsoft.Maps.AdvancedShapes', { callback: function(){
-                defered.resolve();
-            }});
-        } else {
-            defered.resolve();
-        }
-        return defered.promise;
-    }
-
-    return {
-        makeMicrosoftColor: makeMicrosoftColor,
-        makeMicrosoftLatLng: makeMicrosoftLatLng,
-        convertToMicrosoftLatLngs: convertToMicrosoftLatLngs,
-        flattenEntityCollection: flattenEntityCollection,
-        loadAdvancedShapesModule: loadAdvancedShapesModule
-    };
-
-}
-
-angular.module('angularBingMaps.services').service('MapUtils', mapUtilsService);
 
 },{"color":2}],2:[function(require,module,exports){
 /* MIT license */
@@ -1441,6 +1444,13 @@ function hsl2hsv(hsl) {
       s = hsl[1] / 100,
       l = hsl[2] / 100,
       sv, v;
+
+  if(l === 0) {
+      // no need to do calc on black
+      // also avoids divide by 0 error
+      return [0, 0, 0];
+  }
+
   l *= 2;
   s *= (l <= 1) ? l : 2 - l;
   v = (l + s) / 2;
